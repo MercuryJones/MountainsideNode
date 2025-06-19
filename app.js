@@ -1,105 +1,119 @@
-// app.js
-import express from "express";
-import cors from "cors";
-import multer from "multer";
-import Joi from "joi";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const express = require("express");
+const cors = require("cors");
+const multer = require("multer");
+const Joi = require("joi");
+const mongoose = require("mongoose");
 
 const app = express();
-const PORT = process.env.PORT || 10000;
-
-// Middleware
-app.use(cors());
+app.use(express.static("public"));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use("/images", express.static(path.join(__dirname, "images")));
+app.use(cors());
 
-// In-memory data store
-let amenities = [
-  { id: 1, name: "Outdoor Kitchen", description: "Outdoor Kitchen appliances for all of your grilling dreams.", image: "/images/kitchen.jpg" },
-  { id: 2, name: "Jet Ski and Paddle Boards", description: "Have a blast on the lake from fast action jetskis to relaxing paddleboards.", image: "/images/ski.jpg" },
-  { id: 3, name: "Outdoor Fire Pit", description: "A quaint fireplace where you and your loved ones can enjoy conversation and s'mores", image: "/images/fire.jpg" },
-  { id: 4, name: "Tanning", description: "Achieve a beautiful bronze from our multiple tanning deck options.", image: "/images/tan.jpg" },
-];
-
-let currentId = 5;
-
-// Multer config for image upload
+// === Multer setup for image uploads ===
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "images"),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
+  destination: (req, file, cb) => {
+    cb(null, "./public/images/");
+  },
+  filename: (req, file, cb) => {
+    cb(null, file.originalname);
+  },
 });
-const upload = multer({ storage });
+const upload = multer({ storage: storage });
 
-// Validation schema
-const amenitySchema = Joi.object({
-  name: Joi.string().required(),
-  description: Joi.string().required(),
-});
+// === MongoDB Atlas connection using your personal URI ===
+mongoose
+  .connect("mongodb+srv://jhatch:vChokxnrwKpW8C2D@cluster0.deogawc.mongodb.net/mountainside?retryWrites=true&w=majority&appName=Cluster0")
+  .then(() => {
+    console.log("connected to mongodb");
+  })
+  .catch((error) => {
+    console.log("couldn't connect to mongodb", error);
+  });
 
-// Root route
-app.get("/", (req, res) => {
-  res.send(`
-    <h1>Mountainside Node API</h1>
-    <ul>
-      <li><a href="/api/amenities">GET /api/amenities</a></li>
-    </ul>
-  `);
-});
-
-// GET all amenities
-app.get("/api/amenities", (req, res) => {
-  res.json(amenities);
-});
-
-// POST new amenity
-app.post("/api/amenities", upload.single("image"), (req, res) => {
-  const { error } = amenitySchema.validate(req.body);
-  if (error) return res.status(400).json({ error: error.details[0].message });
-
-  const newAmenity = {
-    id: currentId++,
-    name: req.body.name,
-    description: req.body.description,
-    image: req.file ? `/images/${req.file.filename}` : "",
-  };
-
-  amenities.push(newAmenity);
-  res.status(201).json(newAmenity);
+// === Mongoose Schema and Model ===
+const amenitySchema = new mongoose.Schema({
+  name: String,
+  description: String,
+  image: String,
 });
 
-// PUT update amenity
-app.put("/api/amenities/:id", upload.single("image"), (req, res) => {
-  const id = parseInt(req.params.id);
-  const amenity = amenities.find((a) => a.id === id);
+const Amenity = mongoose.model("Amenity", amenitySchema);
 
-  if (!amenity) return res.status(404).json({ error: "Amenity not found" });
+// === GET all amenities ===
+app.get("/api/amenities", async (req, res) => {
+  const amenities = await Amenity.find();
+  res.send(amenities);
+});
+
+// === POST new amenity ===
+app.post("/api/amenities", upload.single("image"), async (req, res) => {
   const { name, description } = req.body;
-  if (!name || !description) return res.status(400).json({ error: "Name and description are required" });
 
-  amenity.name = name;
-  amenity.description = description;
-  if (req.file) {
-    amenity.image = `/images/${req.file.filename}`;
+  const result = validateAmenity({ name, description });
+  if (result.error) {
+    return res.status(400).send({ error: result.error.details[0].message });
   }
 
-  res.json(amenity);
+  const amenity = new Amenity({
+    name,
+    description,
+    image: req.file?.filename || "",
+  });
+
+  const saved = await amenity.save();
+  res.send(saved);
 });
 
-// DELETE amenity
-app.delete("/api/amenities/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  const index = amenities.findIndex((a) => a.id === id);
+// === PUT to update amenity ===
+app.put("/api/amenities/:id", upload.single("image"), async (req, res) => {
+  const { name, description } = req.body;
 
-  if (index === -1) return res.status(404).json({ error: "Amenity not found" });
+  const result = validateAmenity({ name, description });
+  if (result.error) {
+    return res.status(400).send({ error: result.error.details[0].message });
+  }
 
-  amenities.splice(index, 1);
-  res.sendStatus(200);
+  const updateData = {
+    name,
+    description,
+  };
+
+  if (req.file) {
+    updateData.image = req.file.filename;
+  }
+
+  const updated = await Amenity.findByIdAndUpdate(req.params.id, updateData, {
+    new: true,
+  });
+
+  if (!updated) {
+    return res.status(404).send({ error: "Amenity not found" });
+  }
+
+  res.send(updated);
 });
 
-// Start server
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// === DELETE amenity ===
+app.delete("/api/amenities/:id", async (req, res) => {
+  const deleted = await Amenity.findByIdAndDelete(req.params.id);
+  if (!deleted) {
+    return res.status(404).send({ error: "Amenity not found" });
+  }
+  res.send(deleted);
+});
+
+// === Joi validation ===
+const validateAmenity = (data) => {
+  const schema = Joi.object({
+    name: Joi.string().min(3).required(),
+    description: Joi.string().min(3).required(),
+  });
+
+  return schema.validate(data);
+};
+
+// === Start server ===
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
