@@ -20,10 +20,10 @@ app.use("/images", express.static(path.join(__dirname, "images")));
 
 // In-memory data store
 let amenities = [
-  { id: 1, title: "Outdoor Kitchen", description: "Outdoor Kitchen appliances for all of your grilling dreams.", image: "/images/kitchen.jpg" },
-  { id: 2, title: "Jet Ski and Paddle Boards", description: "Have a blast on the lake from fast action jetskis to relaxing paddleboards.", image: "/images/ski.jpg" },
-  { id: 3, title: "Outdoor Fire Pit", description: "A quaint fireplace where you and your loved ones can enjoy conversation and s'mores", image: "/images/fire.jpg" },
-  { id: 4, title: "Tanning", description: "Achieve a beautiful bronze from our multiple tanning deck options.", image: "/images/tan.jpg" },
+  { id: 1, name: "Outdoor Kitchen", description: "Outdoor Kitchen appliances for all of your grilling dreams.", image: "/images/kitchen.jpg" },
+  { id: 2, name: "Jet Ski and Paddle Boards", description: "Have a blast on the lake from fast action jetskis to relaxing paddleboards.", image: "/images/ski.jpg" },
+  { id: 3, name: "Outdoor Fire Pit", description: "A quaint fireplace where you and your loved ones can enjoy conversation and s'mores", image: "/images/fire.jpg" },
+  { id: 4, name: "Tanning", description: "Achieve a beautiful bronze from our multiple tanning deck options.", image: "/images/tan.jpg" },
 ];
 
 let currentId = 5;
