@@ -30,10 +30,10 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 let amenities = [
-  { id: 1, title: "Outdoor Kitchen", description: "Outdoor kitchen appliances for all of your grilling dreams.", image: "/images/kitchen.jpg" },
-  { id: 2, title: "Jet Ski and Paddle Boards", description: "Have a blast on the lake with our fast jetski!", image: "/images/ski.jpg" },
-  { id: 3, title: "Outdoor Fire Pit", description: "A quaint fireplace for s'mores.", image: "/images/fire.jpg" },
-  { id: 4, title: "Tanning", description: "Achieve a beautiful bronze.", image: "/images/tan.jpg" },
+  { id: 1, name: "Outdoor Kitchen", description: "Outdoor kitchen appliances for all of your grilling dreams.", image: "/images/kitchen.jpg" },
+  { id: 2, name: "Jet Ski and Paddle Boards", description: "Have a blast on the lake with our fast jetski!", image: "/images/ski.jpg" },
+  { id: 3, name: "Outdoor Fire Pit", description: "A quaint fireplace for s'mores.", image: "/images/fire.jpg" },
+  { id: 4, name: "Tanning", description: "Achieve a beautiful bronze.", image: "/images/tan.jpg" },
 ];
 
 // Schema
