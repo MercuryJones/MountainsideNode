@@ -1,92 +1,47 @@
 // app.js
 import express from "express";
 import cors from "cors";
-import Joi from "joi";
 import multer from "multer";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
+import Joi from "joi";
 import path from "path";
-import fs from "fs";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000;
 
+// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.urlencoded({ extended: true }));
+app.use("/images", express.static(path.join(__dirname, "images")));
 
-// Uploads
-const uploadDir = path.join(__dirname, "public/uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// In-memory data store
+let amenities = [
+  { id: 1, title: "Outdoor Kitchen", description: "Outdoor Kitchen appliances for all of your grilling dreams.", image: "/images/kitchen.jpg" },
+  { id: 2, title: "Jet Ski and Paddle Boards", description: "Have a blast on the lake from fast action jetskis to relaxing paddleboards.", image: "/images/ski.jpg" },
+  { id: 3, title: "Outdoor Fire Pit", description: "A quaint fireplace where you and your loved ones can enjoy conversation and s'mores", image: "/images/fire.jpg" },
+  { id: 4, title: "Tanning", description: "Achieve a beautiful bronze from our multiple tanning deck options.", image: "/images/tan.jpg" },
+];
+
+let currentId = 5;
+
+// Multer config for image upload
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
+  destination: (req, file, cb) => cb(null, "images"),
+  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
 });
 const upload = multer({ storage });
 
-let amenities = [
-  { id: 1, name: "Outdoor Kitchen", description: "Outdoor kitchen appliances for all of your grilling dreams.", image: "/images/kitchen.jpg" },
-  { id: 2, name: "Jet Ski and Paddle Boards", description: "Have a blast on the lake with our fast jetski!", image: "/images/ski.jpg" },
-  { id: 3, name: "Outdoor Fire Pit", description: "A quaint fireplace for s'mores.", image: "/images/fire.jpg" },
-  { id: 4, name: "Tanning", description: "Achieve a beautiful bronze.", image: "/images/tan.jpg" },
-];
-
-// Schema
+// Validation schema
 const amenitySchema = Joi.object({
-  name: Joi.string().min(2).required(),
-  description: Joi.string().min(5).required(),
+  name: Joi.string().required(),
+  description: Joi.string().required(),
 });
 
-// GET amenities
-app.get("/api/amenities", (req, res) => res.json(amenities));
-
-// POST new amenity
-app.post("/api/amenities", upload.single("image"), (req, res) => {
-  const { error } = amenitySchema.validate(req.body);
-  if (error) return res.status(400).json({ error: error.details[0].message });
-  if (!req.file) return res.status(400).json({ error: "Image is required." });
-
-  const newAmenity = {
-    id: Date.now(),
-    name: req.body.name,
-    description: req.body.description,
-    image: "/uploads/" + req.file.filename,
-  };
-
-  amenities.push(newAmenity);
-  res.status(201).json(newAmenity);
-});
-
-// PUT update amenity
-app.put("/api/amenities/:id", upload.single("image"), (req, res) => {
-  const amenity = amenities.find((a) => a.id === parseInt(req.params.id));
-  if (!amenity || amenities.indexOf(amenity) < 4) return res.status(404).json({ error: "Amenity not found or cannot be edited." });
-
-  const { error } = amenitySchema.validate(req.body);
-  if (error) return res.status(400).json({ error: error.details[0].message });
-
-  amenity.name = req.body.name;
-  amenity.description = req.body.description;
-  if (req.file) amenity.image = "/uploads/" + req.file.filename;
-
-  res.json(amenity);
-});
-
-// DELETE amenity
-app.delete("/api/amenities/:id", (req, res) => {
-  const index = amenities.findIndex((a) => a.id === parseInt(req.params.id));
-  if (index === -1 || index < 4) return res.status(404).json({ error: "Amenity not found or cannot be deleted." });
-
-  amenities.splice(index, 1);
-  res.sendStatus(200);
-});
-
-// Home
+// Root route
 app.get("/", (req, res) => {
   res.send(`
     <h1>Mountainside Node API</h1>
@@ -96,6 +51,55 @@ app.get("/", (req, res) => {
   `);
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// GET all amenities
+app.get("/api/amenities", (req, res) => {
+  res.json(amenities);
 });
+
+// POST new amenity
+app.post("/api/amenities", upload.single("image"), (req, res) => {
+  const { error } = amenitySchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const newAmenity = {
+    id: currentId++,
+    name: req.body.name,
+    description: req.body.description,
+    image: req.file ? `/images/${req.file.filename}` : "",
+  };
+
+  amenities.push(newAmenity);
+  res.status(201).json(newAmenity);
+});
+
+// PUT update amenity
+app.put("/api/amenities/:id", upload.single("image"), (req, res) => {
+  const id = parseInt(req.params.id);
+  const amenity = amenities.find((a) => a.id === id);
+
+  if (!amenity) return res.status(404).json({ error: "Amenity not found" });
+  const { name, description } = req.body;
+  if (!name || !description) return res.status(400).json({ error: "Name and description are required" });
+
+  amenity.name = name;
+  amenity.description = description;
+  if (req.file) {
+    amenity.image = `/images/${req.file.filename}`;
+  }
+
+  res.json(amenity);
+});
+
+// DELETE amenity
+app.delete("/api/amenities/:id", (req, res) => {
+  const id = parseInt(req.params.id);
+  const index = amenities.findIndex((a) => a.id === id);
+
+  if (index === -1) return res.status(404).json({ error: "Amenity not found" });
+
+  amenities.splice(index, 1);
+  res.sendStatus(200);
+});
+
+// Start server
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
