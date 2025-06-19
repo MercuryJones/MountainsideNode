@@ -1,9 +1,11 @@
 import express from "express";
 import cors from "cors";
 import Joi from "joi";
+import multer from "multer";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 import path from "path";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -11,12 +13,21 @@ const __dirname = dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Sample data
+// Uploads
+const uploadDir = path.join(__dirname, "public/uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
+});
+const upload = multer({ storage });
+
 let amenities = [
     {
       id: 1,
@@ -44,11 +55,10 @@ let amenities = [
     }
   ];
 
-// Joi schema
+// Schema for validation (note: image is optional here because it's handled by multer)
 const amenitySchema = Joi.object({
   name: Joi.string().min(2).required(),
   description: Joi.string().min(5).required(),
-  image: Joi.string().uri().required()
 });
 
 // GET amenities
@@ -56,17 +66,25 @@ app.get("/api/amenities", (req, res) => {
   res.json(amenities);
 });
 
-// POST amenity
-app.post("/api/amenities", (req, res) => {
+// POST amenity with file upload
+app.post("/api/amenities", upload.single("image"), (req, res) => {
   const { error } = amenitySchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
 
-  const newAmenity = { id: Date.now(), ...req.body };
+  if (!req.file) return res.status(400).json({ error: "Image file is required." });
+
+  const newAmenity = {
+    id: Date.now(),
+    name: req.body.name,
+    description: req.body.description,
+    image: "/uploads/" + req.file.filename,
+  };
+
   amenities.push(newAmenity);
   res.status(201).json(newAmenity);
 });
 
-// Simple landing page
+// Landing page
 app.get("/", (req, res) => {
   res.send(`
     <h1>Mountainside Node API</h1>
@@ -79,3 +97,4 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
