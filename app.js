@@ -103,14 +103,16 @@ app.delete("/api/amenities/:id", async (req, res) => {
 });
 
 // === Joi validation ===
-const validateAmenity = (data) => {
-  const schema = Joi.object({
-    name: Joi.string().min(3).required(),
-    description: Joi.string().min(3).required(),
-  });
-
-  return schema.validate(data);
-};
+const validateAmenity = (amenity) => {
+    const schema = Joi.object({
+      _id: Joi.allow(""),
+      name: Joi.string().min(2).required(),
+      description: Joi.string().min(3).required()
+    });
+  
+    return schema.validate(amenity);
+  };
+  
 
 // === Start server ===
 const PORT = process.env.PORT || 3001;
